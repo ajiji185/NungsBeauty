@@ -15,9 +15,18 @@ export function HomeScreen({ onCamera, onLibrary }: Props) {
       <LinearGradient colors={['transparent', colors.bg]} style={styles.fade} />
 
       <View style={styles.hero}>
-        <Text style={styles.kicker}>SELFIE RETOUCH</Text>
+        <Text style={styles.kicker}>EVERYDAY EDITOR</Text>
         <Text style={styles.title}>Nung's{'\n'}Beauty</Text>
-        <Text style={styles.sub}>Smooth skin, glow, reshape, and looks — like a studio in your pocket.</Text>
+        <Text style={styles.sub}>
+          Retouch, reshape, makeup, and looks — one-tap Enhance, then fine-tune like a studio in your pocket.
+        </Text>
+        <View style={styles.pills}>
+          {['Smooth', 'Teeth', 'Face slim', 'Makeup', 'Looks'].map((p) => (
+            <View key={p} style={styles.pill}>
+              <Text style={styles.pillText}>{p}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.actions}>
@@ -38,10 +47,19 @@ const styles = StyleSheet.create({
   orbA: { width: 280, height: 280, backgroundColor: '#5A2238', top: -40, right: -60 },
   orbB: { width: 220, height: 220, backgroundColor: '#3A2A18', top: 160, left: -80 },
   fade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  hero: { marginTop: 120 },
+  hero: { marginTop: 108 },
   kicker: { color: colors.gold, letterSpacing: 3, fontSize: 12, fontWeight: '700', marginBottom: 16 },
   title: { color: colors.text, fontSize: 52, fontWeight: '300', lineHeight: 58, letterSpacing: -1 },
-  sub: { color: colors.textMuted, fontSize: 16, lineHeight: 24, marginTop: 18, maxWidth: 300 },
+  sub: { color: colors.textMuted, fontSize: 16, lineHeight: 24, marginTop: 18, maxWidth: 320 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 },
+  pill: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  pillText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   actions: { marginBottom: 48, gap: 12 },
   primary: {
     backgroundColor: colors.rose,

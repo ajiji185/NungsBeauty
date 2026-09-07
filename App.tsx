@@ -82,7 +82,11 @@ export default function App() {
           <ActivityIndicator color="#E8A0B0" size="large" />
         </View>
       ) : photo ? (
-        <EditorScreen uri={photo.uri} imageSize={photo} onClose={() => setPhoto(null)} />
+        <EditorScreen
+          photo={photo}
+          onClose={() => setPhoto(null)}
+          onReplacePhoto={setPhoto}
+        />
       ) : (
         <HomeScreen onCamera={() => open('camera')} onLibrary={() => open('library')} />
       )}
