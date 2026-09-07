@@ -1,6 +1,5 @@
 import * as Haptics from 'expo-haptics';
 import * as MediaLibrary from 'expo-media-library';
-import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import { useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -12,9 +11,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { PhotoCanvas } from '../engine/PhotoCanvas';
+import { captureRef } from 'react-native-view-shot';
+import { PhotoCanvas, Stamp } from '../engine/PhotoCanvas';
 import { colors, looks, tools } from '../theme';
-import { defaultParams, EditParams, MASK_SIZE, ToolId } from '../types';
+import { defaultParams, EditParams, ToolId } from '../types';
 
 type Props = {
   uri: string;
@@ -22,59 +22,22 @@ type Props = {
   onClose: () => void;
 };
 
-const BRUSH_CH: Partial<Record<ToolId, number>> = {
-  smooth: 0,
-  heal: 1,
-  whiten: 2,
-  blush: 3,
-};
-
-function cloneMask(src: Uint8Array) {
-  const copy = new Uint8Array(src.length);
-  copy.set(src);
-  return copy;
-}
-
-function stamp(
-  mask: Uint8Array,
-  nx: number,
-  ny: number,
-  channel: number,
-  radius: number,
-  strength: number
-) {
-  const r = Math.max(2, radius * MASK_SIZE);
-  const cx = nx * (MASK_SIZE - 1);
-  const cy = ny * (MASK_SIZE - 1);
-  const x0 = Math.max(0, Math.floor(cx - r));
-  const x1 = Math.min(MASK_SIZE - 1, Math.ceil(cx + r));
-  const y0 = Math.max(0, Math.floor(cy - r));
-  const y1 = Math.min(MASK_SIZE - 1, Math.ceil(cy + r));
-  for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const d = Math.hypot(x - cx, y - cy) / r;
-      if (d >= 1) continue;
-      const add = (1 - d) * (1 - d) * strength * 42;
-      const i = (y * MASK_SIZE + x) * 4 + channel;
-      mask[i] = Math.min(255, mask[i] + add);
-    }
-  }
-}
+const BRUSH_TOOLS: Stamp['tool'][] = ['smooth', 'heal', 'whiten', 'blush'];
 
 export function EditorScreen({ uri, imageSize, onClose }: Props) {
   const [params, setParams] = useState<EditParams>(defaultParams);
   const [tool, setTool] = useState<ToolId>('smooth');
   const [comparing, setComparing] = useState(false);
-  const [mask, setMask] = useState(() => new Uint8Array(MASK_SIZE * MASK_SIZE * 4));
-  const [maskVersion, setMaskVersion] = useState(0);
+  const [stamps, setStamps] = useState<Stamp[]>([]);
   const [frame, setFrame] = useState({ width: 0, height: 0 });
   const [saving, setSaving] = useState(false);
-  const glRef = useRef<ExpoWebGLRenderingContext | null>(null);
-  const history = useRef<{ params: EditParams; mask: Uint8Array }[]>([]);
+  const shotRef = useRef<View>(null);
+  const history = useRef<{ params: EditParams; stamps: Stamp[] }[]>([]);
   const painting = useRef(false);
+  const lastStamp = useRef({ nx: -1, ny: -1 });
 
   const look = looks.find((l) => l.id === params.lookId) ?? looks[0];
-  const isBrush = tool in BRUSH_CH;
+  const isBrush = BRUSH_TOOLS.includes(tool as Stamp['tool']);
   const aspect = imageSize.width / Math.max(imageSize.height, 1);
 
   const fitted = useMemo(() => {
@@ -90,8 +53,8 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
     return { width, height, x: (frame.width - width) / 2, y: 0 };
   }, [aspect, frame]);
 
-  const pushHistory = (nextParams = params, nextMask = mask) => {
-    history.current.push({ params: { ...nextParams }, mask: cloneMask(nextMask) });
+  const pushHistory = (nextParams = params, nextStamps = stamps) => {
+    history.current.push({ params: { ...nextParams }, stamps: [...nextStamps] });
     if (history.current.length > 30) history.current.shift();
   };
 
@@ -99,8 +62,7 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
     const prev = history.current.pop();
     if (!prev) return;
     setParams(prev.params);
-    setMask(cloneMask(prev.mask));
-    setMaskVersion((v) => v + 1);
+    setStamps(prev.stamps);
     Haptics.selectionAsync();
   };
 
@@ -124,31 +86,27 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
     setFrame({ width, height });
   };
 
-  const toUv = (evt: GestureResponderEvent) => {
-    const { locationX, locationY } = evt.nativeEvent;
-    const nx = (locationX - fitted.x) / Math.max(fitted.width, 1);
-    const ny = (locationY - fitted.y) / Math.max(fitted.height, 1);
-    return { nx, ny };
-  };
-
   const paintAt = (evt: GestureResponderEvent, start: boolean) => {
-    const ch = BRUSH_CH[tool];
-    if (ch === undefined) return;
-    const { nx, ny } = toUv(evt);
+    if (!BRUSH_TOOLS.includes(tool as Stamp['tool'])) return;
+    const { locationX, locationY } = evt.nativeEvent;
+    const nx = locationX / Math.max(fitted.width, 1);
+    const ny = locationY / Math.max(fitted.height, 1);
     if (nx < 0 || ny < 0 || nx > 1 || ny > 1) return;
     if (start) {
       pushHistory();
       painting.current = true;
+      lastStamp.current = { nx: -1, ny: -1 };
     }
     if (!painting.current) return;
-    const next = mask;
-    stamp(next, nx, ny, ch, 0.07, 1);
-    setMaskVersion((v) => v + 1);
+    const dx = nx - lastStamp.current.nx;
+    const dy = ny - lastStamp.current.ny;
+    if (lastStamp.current.nx >= 0 && Math.hypot(dx, dy) < 0.03) return;
+    lastStamp.current = { nx, ny };
+    setStamps((prev) => [...prev, { nx, ny, tool: tool as Stamp['tool'] }]);
   };
 
   const save = async () => {
-    const gl = glRef.current;
-    if (!gl) return;
+    if (!shotRef.current) return;
     setSaving(true);
     try {
       const perm = await MediaLibrary.requestPermissionsAsync();
@@ -156,8 +114,12 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
         Alert.alert('Photos access', 'Allow photo library access to save your edit.');
         return;
       }
-      const snap = await GLView.takeSnapshotAsync(gl, { format: 'png', compress: 1 });
-      await MediaLibrary.saveToLibraryAsync(String(snap.uri));
+      const file = await captureRef(shotRef, {
+        format: 'jpg',
+        quality: 0.95,
+        result: 'tmpfile',
+      });
+      await MediaLibrary.saveToLibraryAsync(file);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Your photo is in the library.');
     } catch (e) {
@@ -182,6 +144,8 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
       <View style={styles.stage} onLayout={onFrame}>
         {fitted.width > 0 && (
           <View
+            ref={shotRef}
+            collapsable={false}
             style={[
               styles.canvasWrap,
               { width: fitted.width, height: fitted.height, left: fitted.x, top: fitted.y },
@@ -194,18 +158,7 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
               painting.current = false;
             }}
           >
-            <PhotoCanvas
-              key={uri}
-              uri={uri}
-              params={params}
-              mask={mask}
-              maskVersion={maskVersion}
-              comparing={comparing}
-              imageSize={imageSize}
-              onGlReady={(gl) => {
-                glRef.current = gl;
-              }}
-            />
+            <PhotoCanvas uri={uri} params={params} comparing={comparing} stamps={stamps} />
           </View>
         )}
       </View>
@@ -225,7 +178,7 @@ export function EditorScreen({ uri, imageSize, onClose }: Props) {
         </View>
 
         {isBrush && (
-          <Text style={styles.hint}>Paint over the area, then raise the strength.</Text>
+          <Text style={styles.hint}>Raise the slider to apply. Paint to target a spot.</Text>
         )}
 
         {tool !== 'adjust' && tool !== 'looks' && (
@@ -359,7 +312,7 @@ const styles = StyleSheet.create({
   brand: { color: colors.text, fontSize: 16, fontWeight: '600', letterSpacing: 0.3 },
   topBtn: { color: colors.rose, fontSize: 16, fontWeight: '600' },
   stage: { flex: 1, marginHorizontal: 12, borderRadius: 18, overflow: 'hidden', backgroundColor: '#000' },
-  canvasWrap: { position: 'absolute' },
+  canvasWrap: { position: 'absolute', overflow: 'hidden', backgroundColor: '#000' },
   dock: {
     paddingTop: 12,
     paddingBottom: 28,
