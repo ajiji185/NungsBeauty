@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Nung's Beauty",
+    "slug": "nungs-beauty",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "nungsbeauty",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nung.beauty",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nung's Beauty uses the camera so you can take selfies to retouch.",
+        "NSPhotoLibraryUsageDescription": "Nung's Beauty needs your photos so you can retouch them.",
+        "NSPhotoLibraryAddUsageDescription": "Nung's Beauty saves your edited photos to the library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#070608",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Nung's Beauty needs your photos so you can retouch them.",
+          "cameraPermission": "Nung's Beauty uses the camera so you can take selfies to retouch."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Nung's Beauty needs your photos so you can retouch them.",
+          "savePhotosPermission": "Nung's Beauty saves your edited photos to the library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ]
+  }
+}
